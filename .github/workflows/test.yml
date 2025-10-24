@@ -1,0 +1,39 @@
+name: Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      http_server:
+        description: "HTTP Server"
+        required: false
+        type: string
+        default: "localhost"
+      full_log:
+        description: "Enable full log"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    name: Test Inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show raw inputs
+        run: |
+          echo "---- RAW INPUTS ----"
+          echo "http_server: ${{ inputs.http_server }}"
+          echo "full_log: ${{ inputs.full_log }}"
+          echo ""
+
+      - name: Show parsed boolean
+        run: |
+          echo "---- PARSED INPUTS ----"
+          echo "http_server=${{ inputs.http_server }}"
+          echo "full_log (parsed)=${{ fromJSON(inputs.full_log) }}"
+          echo ""
+
+      - name: Conditional logic test
+        if: ${{ fromJSON(inputs.full_log) }}
+        run: |
+          echo "Full log is ENABLED ✅"
