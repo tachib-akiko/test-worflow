@@ -46,7 +46,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
         run: |
           echo "Cloning tachibana-shin/poc..."
-          git clone --depth=1 https://x-access-token:${GH_TOKEN}@github.com/tachibana-shin/poc.git poc
+          git clone --depth=1 https://x-access-token:${GH_TOKEN}@github.com/tachib-akiko/cuutruyen-crawler.git poc
           echo "✅ Clone done."
 
       - name: Setup Bun
