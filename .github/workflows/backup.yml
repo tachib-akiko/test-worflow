@@ -1,13 +1,7 @@
 name: Supa-backup
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch: # Allows manual triggering from the GitHub Actions tab
-  schedule:
-    - cron: '0 0 * * *' # Runs every day at midnight
+  workflow_dispatch: 
 jobs:   
   run_db_backup:
     runs-on: ubuntu-latest
@@ -55,10 +49,13 @@ jobs:
       - name: Commit and push backup
         working-directory: data
         run: |
+          git checkout -B main
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Add all changes in the data directory
+          
           git add .
+          
 
           git push origin main
