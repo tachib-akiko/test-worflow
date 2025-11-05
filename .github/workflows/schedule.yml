@@ -1,0 +1,121 @@
+name: Schelude Build (Bun + Rust + WASM)
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      http_proxy:
+        description: "Optional Http Proxy URL (example: https://proxy.com)"
+        required: false
+        default: ""
+      http_proxy_curl:
+        description: "Optional Raw Http Proxy URL (example: http://proxy.com)"
+        required: false
+        default: ""
+      delay_fetch:
+        description: "Optional delay fetch"
+        required: false
+        default: true
+        type: boolean
+      target_url:
+        description: "Optional Target URL"
+        required: false
+        default: ""
+      full_log:
+        description: "Optional enable show full log"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: build-shared
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: ${{ vars.ENABLE_SCHEDULE == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+
+      - name: Clone tachibana-shin/poc
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
+        run: |
+          echo "Cloning tachibana-shin/poc..."
+          git clone --depth=1 https://x-access-token:${GH_TOKEN}@github.com/tachibana-shin/poc.git poc
+          echo "✅ Clone done."
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            poc/wasm/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('poc/wasm/Cargo.lock') }}
+
+      - name: Cache wasm/pkg
+        id: cache-wasm
+        uses: actions/cache/restore@v4
+        with:
+          path: poc/wasm/pkg
+          key: ${{ runner.os }}-wasm-${{ hashFiles('poc/wasm/Cargo.toml', 'poc/wasm/Cargo.lock', 'poc/wasm/src/**/*.rs') }}
+
+      - name: Build WASM
+        if: steps.cache-wasm.outputs.cache-hit != 'true'
+        working-directory: poc/wasm
+        run: cargo install wasm-pack && sh build.sh
+
+      - name: Save Cargo
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            poc/wasm/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('poc/wasm/Cargo.lock') }}
+
+      - name: Save wasm/pkg
+        uses: actions/cache/save@v4
+        with:
+          path: poc/wasm/pkg
+          key: ${{ runner.os }}-wasm-${{ hashFiles('poc/wasm/Cargo.toml', 'poc/wasm/Cargo.lock', 'poc/wasm/src/**/*.rs') }}
+
+      - name: Write environment file
+        working-directory: poc
+        run: |
+          echo "${{ secrets.ENV_CONTENT }}" > .env
+          echo ".env file created with secret content"
+
+      - name: Write cookie.json safely
+        working-directory: poc
+        run: |
+          cat <<'EOF' > cookie.json
+          ${{ secrets.COOKIE }}
+          EOF
+
+      - name: Install dependencies
+        working-directory: poc
+        run: bun install
+
+      - name: Run schelude.ts
+        working-directory: poc
+        env:
+          HTTP_PROXY: ${{ github.event_name == 'schedule' && secrets.HTTP_PROXY || github.event.inputs.http_proxy }}
+          HTTP_PROXY_CURL: ${{ github.event_name == 'schedule' && secrets.HTTP_PROXY_CURL || github.event.inputs.http_proxy_curl }}
+          TARGET_URL: ${{ github.event.inputs.target_url }}
+          DELAY_FETCH: ${{ github.event_name == 'schedule' && vars.DELAY_FETCH || github.event.inputs.delay_fetch }}
+          FULL_LOG: ${{ github.event.inputs.full_log }}
+        run: bun schelude.ts
